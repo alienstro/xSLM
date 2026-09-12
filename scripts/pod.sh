@@ -19,6 +19,10 @@ if [ -f "$ENV_FILE" ] && [ -z "${POD_SSH:-}" ]; then
     set +a
 fi
 
+# The RunPod console shows a whole command, so the pasted value often starts with
+# "ssh ". Strip that word, or every later command would treat it as the hostname.
+POD_SSH="${POD_SSH#ssh }"
+
 if [ -z "${POD_SSH:-}" ]; then
     echo "POD_SSH is empty. Write it in .env, or export it." >&2
     echo 'Example: POD_SSH="root@1.2.3.4 -p 40123 -i ~/.ssh/id_ed25519"' >&2

@@ -56,3 +56,9 @@ def test_the_env_example_names_every_variable_the_scripts_read():
     for name in ("HF_TOKEN", "HF_REPO_ID", "MODEL_LICENSE", "WANDB_API_KEY",
                  "WANDB_PROJECT", "POD_SSH"):
         assert f"{name}=" in example
+
+
+def test_pod_strips_a_pasted_ssh_prefix():
+    """The RunPod console shows a full command, so POD_SSH often starts with 'ssh '."""
+    text = (SCRIPTS / "pod.sh").read_text()
+    assert "POD_SSH#ssh " in text
