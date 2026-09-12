@@ -19,6 +19,15 @@ def test_quantize_builds_every_requested_type():
         assert quant in text
 
 
+def test_quantize_writes_both_sixteen_bit_files():
+    """BF16 keeps the training dtype. F16 serves the tools that read no BF16."""
+    text = (SCRIPTS / "quantize.sh").read_text()
+    assert "--outtype bf16" in text
+    assert "--outtype f16" in text
+    assert "$NAME-BF16.gguf" in text
+    assert "$NAME-F16.gguf" in text
+
+
 def test_pod_is_valid_bash():
     subprocess.run(["bash", "-n", str(SCRIPTS / "pod.sh")], check=True)
 

@@ -81,7 +81,8 @@ document index, or a QLoRA fine-tune of an existing 1B to 8B base model.
 | File | Use |
 |---|---|
 | `model.safetensors` | The BF16 weights, for `transformers` |
-| `gguf/{model_name}-BF16.gguf` | The unquantized GGUF file |
+| `gguf/{model_name}-BF16.gguf` | The unquantized GGUF file, in the training dtype |
+| `gguf/{model_name}-F16.gguf` | The unquantized GGUF file, for the tools that read no BF16 |
 | `gguf/{model_name}-Q8_0.gguf` | **The recommended quantized file** |
 | `gguf/{model_name}-Q6_K.gguf` | Smaller, with a visible quality cost |
 | `gguf/{model_name}-Q4_K_M.gguf` | A demonstration only |

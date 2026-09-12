@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Step 6. Build llama.cpp, convert the model to GGUF, and quantize it three times.
 #
+# The script writes two sixteen bit files. BF16 keeps the dtype that trained the
+# model, and F16 serves the older tools that read no BF16 tensor. Each one is
+# converted from the safetensors file, because a conversion from BF16 to F16
+# would flush the smallest weights to zero.
+#
 # The build needs no CUDA. llama-quantize is CPU work, and a 70M model quantizes
 # in seconds.
 set -euo pipefail
@@ -24,6 +29,10 @@ fi
 uv run --with gguf python "$LLAMA_DIR/convert_hf_to_gguf.py" "$STAGING" \
     --outfile "$OUTPUT/$NAME-BF16.gguf" \
     --outtype bf16
+
+uv run --with gguf python "$LLAMA_DIR/convert_hf_to_gguf.py" "$STAGING" \
+    --outfile "$OUTPUT/$NAME-F16.gguf" \
+    --outtype f16
 
 for QUANT in Q8_0 Q6_K Q4_K_M; do
     "$LLAMA_DIR/build/bin/llama-quantize" \

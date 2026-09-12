@@ -15,6 +15,7 @@ def complete():
         "tokenizer.json",
         "README.md",
         "gguf/xslm-70m-BF16.gguf",
+        "gguf/xslm-70m-F16.gguf",
         "gguf/xslm-70m-Q8_0.gguf",
         "gguf/xslm-70m-Q6_K.gguf",
         "gguf/xslm-70m-Q4_K_M.gguf",
@@ -39,7 +40,14 @@ def test_an_empty_repository_reports_every_file():
     assert len(check_files([], "xslm-70m")) == len(REQUIRED)
 
 
-def test_the_required_list_names_all_four_gguf_files():
+def test_the_required_list_names_every_gguf_file():
     names = " ".join(REQUIRED)
-    for quant in ("BF16", "Q8_0", "Q6_K", "Q4_K_M"):
-        assert quant in names
+    for quant in ("BF16", "F16", "Q8_0", "Q6_K", "Q4_K_M"):
+        assert f"-{quant}.gguf" in names
+
+
+def test_the_two_sixteen_bit_files_are_separate_entries():
+    """BF16 and F16 are different files. A substring test would confuse them."""
+    names = [item for item in REQUIRED if item.endswith(".gguf")]
+    assert len(names) == 5
+    assert len(set(names)) == 5

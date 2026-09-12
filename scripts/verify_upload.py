@@ -21,6 +21,7 @@ REQUIRED = [
     "tokenizer.json",
     "README.md",
     "gguf/{name}-BF16.gguf",
+    "gguf/{name}-F16.gguf",
     "gguf/{name}-Q8_0.gguf",
     "gguf/{name}-Q6_K.gguf",
     "gguf/{name}-Q4_K_M.gguf",
