@@ -33,7 +33,8 @@ def build_config(config_path=DEFAULT_CONFIG_PATH, **overrides):
         vocab_size=fields["vocab_size"],
         max_position_embeddings=fields["max_position_embeddings"],
         rms_norm_eps=fields["rms_norm_eps"],
-        rope_theta=fields["rope_theta"],
+        # transformers 5 moved rope_theta into the rope_parameters dictionary.
+        rope_parameters={"rope_type": "default", "rope_theta": fields["rope_theta"]},
         initializer_range=fields["initializer_range"],
         tie_word_embeddings=fields["tie_word_embeddings"],
         hidden_act="silu",
@@ -44,6 +45,14 @@ def build_config(config_path=DEFAULT_CONFIG_PATH, **overrides):
         pad_token_id=None,
         use_cache=True,
     )
+
+
+def rope_theta_of(config):
+    """Return the RoPE theta of a config, whatever the transformers version."""
+    parameters = getattr(config, "rope_parameters", None)
+    if parameters:
+        return parameters["rope_theta"]
+    return config.rope_theta
 
 
 def count_non_embedding_parameters(config):
