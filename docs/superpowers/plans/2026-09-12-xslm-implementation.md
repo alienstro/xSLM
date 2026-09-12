@@ -41,6 +41,12 @@ numpy, Weights and Biases, llama.cpp for the GGUF conversion.
      PyTorch writes a tied parameter under every registered name.
   3. `TrainingArguments` no longer accepts `include_tokens_per_second`. The smoke test
      measures the throughput with its own clock.
+  4. `LlamaConfig` holds no `rope_theta` field. The value lives in
+     `rope_parameters={"rope_type": "default", "rope_theta": ...}`. `rope_theta_of`
+     in `src/xslm/config.py` reads it for either version.
+  5. Weight tying needs `_tied_weights_keys = {"lm_head.weight":
+     "model.embed_tokens.weight"}` on the class. Without that map, `post_init` leaves
+     two separate tensors, and the parameter count grows by `vocab_size * hidden_size`.
 
 ---
 
@@ -2477,7 +2483,7 @@ git commit -m "feat: add the pod helper for ssh, rsync, and tmux"
 - [ ] **Step 1: Run the full suite**
 
 Run: `uv run pytest -q`
-Expected: PASS, 59 tests, in under 30 seconds.
+Expected: PASS, 60 tests, in under 30 seconds.
 
 - [ ] **Step 2: Write the README**
 
