@@ -182,6 +182,7 @@ no wasted computation.
 | Gradient checkpointing | Off. It saves memory the budget does not need and costs 30 percent speed |
 | `torch.compile` | Off by default. It is an optional flag, because compilation can fail on a 3090 driver |
 | Dataloader workers | 4 |
+| `report_to` | `["wandb"]` when `WANDB_API_KEY` exists, else `[]` |
 
 ### 6.1 Setting the step count
 
@@ -221,6 +222,7 @@ xSLM/
     data.py                 memmap packed dataset and collator
     callbacks.py            TimeLimitCallback, SampleGenerationCallback
   scripts/
+    pod.sh                  the ssh and rsync helper for the pod
     _env.py                 reads one environment variable and checks that it exists
     train_tokenizer.py      step 1
     prepare_data.py         step 2
@@ -267,7 +269,7 @@ Optional and free: run `pytest` on the development machine before renting the po
 
 | Clock | Step | Duration |
 |---|---|---|
-| 0:00 | Start the pod, clone the repository, `uv sync`, run `nvidia-smi` | 5 min |
+| 0:00 | Start the pod, rsync the repository, `uv sync`, run `nvidia-smi` | 5 min |
 | 0:05 | Run `pytest` on CUDA | 3 min |
 | 0:08 | Run `train_tokenizer.py` | 12 min |
 | 0:20 | Run `prepare_data.py` | 30 min |
@@ -329,6 +331,10 @@ and no secret ever enters the repository.
 HF_TOKEN=
 HF_REPO_ID=
 MODEL_LICENSE=apache-2.0
+
+# Weights and Biases. The training run continues if this value is absent.
+WANDB_API_KEY=
+WANDB_PROJECT=xslm
 ```
 
 > Warning: a fine-grained token limits the damage if the value leaks. A classic write
@@ -407,3 +413,56 @@ The card holds:
   invents facts, and this result is expected at this scale.
 - A note that Q8_0 is the recommended quantized file, and that Q4_K_M at 70M
   parameters is a demonstration only.
+
+## 14. Pod control channel
+
+The person deploys the pod in the RunPod web console. The person then gives the SSH
+command to the agent. The agent runs every step over that one SSH connection.
+
+This spec configures no RunPod API key and no RunPod MCP server. The person keeps the
+only control that starts a charge and the only control that stops it. A defect in a
+script can therefore never leave a GPU billing.
+
+### 14.1 Setup
+
+The person adds `~/.ssh/id_ed25519.pub` to the RunPod account, under Settings, SSH
+Public Keys. The account then accepts that key for every later pod.
+
+### 14.2 Code transfer
+
+The project has no git remote. `scripts/pod.sh` therefore copies the working tree with
+`rsync` over the same SSH connection. `rsync` excludes `.git`, `.venv`, `data`, and
+`out`. The transfer moves about 100 KB and takes one second.
+
+### 14.3 The long run
+
+> Warning: a plain `ssh pod "python train.py"` command loses the training run when the
+> connection drops. Always start the run inside `tmux`.
+
+The agent starts the training detached:
+
+```bash
+ssh pod 'tmux new-session -d -s train "uv run scripts/train.py 2>&1 | tee out/train.log"'
+```
+
+The agent then reads progress in short commands:
+
+```bash
+ssh pod 'tail -5 out/train.log'
+```
+
+The agent polls about every 10 minutes and reports the step, the loss, and the
+throughput. The run survives a closed laptop, a network failure, and an ended agent
+session, because `tmux` owns the process.
+
+Every SSH command uses `-o ServerAliveInterval=30`, so an idle connection does not
+drop.
+
+### 14.4 Weights and Biases
+
+The `Trainer` reports to Weights and Biases, so the person watches the loss curve in a
+browser during the run. The `tmux` log stays the primary record.
+
+`train.py` reads `WANDB_API_KEY`. If the value is absent, the script sets `report_to`
+to an empty list and writes one warning line. The 180 minute run never stops because
+of a telemetry failure.
