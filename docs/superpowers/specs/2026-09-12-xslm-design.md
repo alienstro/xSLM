@@ -8,7 +8,7 @@ Status: Approved for planning
 Build a small language model from scratch to learn the full training pipeline. The
 person writes the tokenizer training, the data pipeline, the model modules, and the
 training configuration. The person trains the model on one RTX 3090 through RunPod.
-The total pod time is four hours.
+The total pod time is four hours and 13 minutes.
 
 ### 1.1 Explicit non-goal
 
@@ -26,6 +26,7 @@ model. Both run on the same 3090. This spec does not cover them.
 3. `sample.py` produces grammatical English paragraphs of at least 100 tokens.
 4. The full test suite passes on CPU and on CUDA.
 5. The person can explain each file in the repository.
+6. The HuggingFace repository holds the BF16 weights and the four GGUF files.
 
 ## 2. Compute budget
 
@@ -91,14 +92,37 @@ the residual stream stable as depth increases.
 
 ### 3.3 HuggingFace integration
 
-The `Trainer` class needs a `PreTrainedModel`. The design supplies two small wrappers:
+The `Trainer` class needs a `PreTrainedModel`. The model must also convert to GGUF
+without a custom converter. One decision answers both needs: the model uses the Llama
+parameter names.
 
-- `XSLMConfig(PretrainedConfig)` holds the fields in the table above.
-- `XSLMForCausalLM(PreTrainedModel)` holds the modules and returns
+The architecture in section 3 is a Llama architecture. The design therefore keeps the
+hand-written modules and changes only the names.
+
+- `XSLMConfig` is a factory. It returns a `LlamaConfig` that holds the fields of the
+  table above. The saved `config.json` declares
+  `"architectures": ["LlamaForCausalLM"]`.
+- `XSLMForCausalLM` subclasses `LlamaPreTrainedModel`. It returns
   `CausalLMOutputWithPast` with a `loss` field when the caller supplies `labels`.
 
-The wrappers add about 30 lines. The attention, the RoPE, the RMSNorm, the SwiGLU, and
-the block all remain hand-written `nn.Module` classes.
+The parameter names are:
+
+```
+model.embed_tokens.weight
+model.layers.{i}.self_attn.{q,k,v,o}_proj.weight
+model.layers.{i}.mlp.{gate,up,down}_proj.weight
+model.layers.{i}.input_layernorm.weight
+model.layers.{i}.post_attention_layernorm.weight
+model.norm.weight
+```
+
+`tie_word_embeddings` is true, so the state dictionary holds no `lm_head.weight`.
+
+The person still writes the RMSNorm, the RoPE, the SwiGLU, the attention, and the
+block by hand. Only the names come from Llama. A test asserts that the state
+dictionary matches `LlamaForCausalLM` key for key and shape for shape. If that test
+passes, `convert_hf_to_gguf.py` cannot fail because of the architecture. A reader also
+loads the model with `AutoModelForCausalLM` and needs no `trust_remote_code` flag.
 
 ## 4. Tokenizer
 
@@ -197,11 +221,15 @@ xSLM/
     data.py                 memmap packed dataset and collator
     callbacks.py            TimeLimitCallback, SampleGenerationCallback
   scripts/
+    _env.py                 reads one environment variable and checks that it exists
     train_tokenizer.py      step 1
     prepare_data.py         step 2
     train.py                step 3
     sample.py               step 4
+    push_to_hub.py          step 5
+    quantize.sh             step 6
   tests/                    pytest, runs on CPU
+  .env.example              the names of the secrets, with no values
   README.md
 ```
 
@@ -224,13 +252,14 @@ suite finishes in under 30 seconds.
 | Memmap bounds | No sampled offset reads past the end of the file |
 | Overfit | 50 steps on 20 tokens drive the loss below 0.1 |
 | Parameter count | The production configuration reports 49M to 51M non-embedding parameters |
+| Llama parity | The state dictionary keys and shapes equal those of `LlamaForCausalLM` |
 
 The overfit test is the most important one. A model that cannot memorize 20 tokens has
 a broken gradient path, and no amount of GPU time will fix it.
 
 ## 9. Execution plan
 
-All four steps run on one RunPod 3090 pod. A separate CPU pod saves about 0.15 US
+All six steps run on one RunPod 3090 pod. A separate CPU pod saves about 0.15 US
 dollars and adds a network volume, a second machine, and a transfer step. The extra
 failure surface costs more than the saving.
 
@@ -244,9 +273,14 @@ Optional and free: run `pytest` on the development machine before renting the po
 | 0:20 | Run `prepare_data.py` | 30 min |
 | 0:50 | Run the 20-step smoke test, then set `max_steps` | 3 min |
 | 0:53 | Run the full training | 180 min |
-| 3:53 | Run `sample.py`, download the checkpoint, stop the pod | 7 min |
+| 3:53 | Run `sample.py`, then push the BF16 weights with `push_to_hub.py` | 7 min |
+| 4:00 | Build the `llama-quantize` target of `llama.cpp`. The build needs no CUDA | 5 min |
+| 4:05 | Run `quantize.sh`: convert to GGUF, then quantize three times | 4 min |
+| 4:09 | Push the `gguf/` folder, download the checkpoint, stop the pod | 4 min |
 
-The total is 4 hours. The estimated cost is about 1.00 US dollar.
+The total is 4 hours and 13 minutes. The estimated cost is about 1.05 US dollars.
+The design does not shorten the training loop to save those 13 minutes, because the
+180 minute loop sets the final loss.
 
 ### 9.1 Pod requirements
 
@@ -265,9 +299,111 @@ The total is 4 hours. The estimated cost is about 1.00 US dollar.
 | The loss diverges | The run wastes time | Gradient clipping at 1.0, plus 200 warmup steps. If the loss still diverges, halve the learning rate |
 | `torch.compile` fails on the driver | The run stops at start | The flag is off by default |
 | The HuggingFace stream rate-limits | Data preparation slows | Set `HF_TOKEN` in the pod environment |
+| The HuggingFace token has no write scope | The weights stay on the pod | `_env.py` checks the token at the start of every script. The BF16 push happens before the quantization step |
+| The Q4_K_M file produces broken text | The smallest file is not usable | This result is expected at 70M parameters. The model card states it. Q8_0 is the recommended file |
 
 ## 11. Out of scope
 
 Instruction tuning, chat formatting, reinforcement learning from human feedback,
-quantization, multi-GPU training, model serving, and any retrieval system. Each is a
-separate project with its own spec.
+multi-GPU training, model serving, and any retrieval system. Each is a separate project
+with its own spec.
+
+Quantization was out of scope in the first version of this spec. Section 13 brings it
+in scope.
+
+## 12. Secrets and environment
+
+The project holds three configuration files. No secret ever enters `configs/base.yaml`,
+and no secret ever enters the repository.
+
+| File | Committed | Holds |
+|---|---|---|
+| `configs/base.yaml` | Yes | Every hyperparameter |
+| `.env.example` | Yes | The names of the secrets, with no values |
+| `.env` | No | The real values on the development machine |
+
+`.env.example` holds these names:
+
+```bash
+# A fine-grained token with write scope, limited to HF_REPO_ID only
+HF_TOKEN=
+HF_REPO_ID=
+MODEL_LICENSE=apache-2.0
+```
+
+> Warning: a fine-grained token limits the damage if the value leaks. A classic write
+> token can rewrite every repository that the account owns. Use a fine-grained token.
+
+### 12.1 How a script reads the environment
+
+The command is `uv run --env-file .env scripts/train.py`. The installed uv is 0.11.17,
+which supports `--env-file`. The project therefore needs no `python-dotenv` dependency
+and no `load_dotenv()` call.
+
+`scripts/_env.py` supplies one function, `require(name)`. The function reads
+`os.environ`, and raises a `RuntimeError` with the fix instruction if the value is
+absent. Every script calls it at import time. A missing token then fails in one second,
+not after a 30 minute data run.
+
+No script prints a token. `push_to_hub.py` prints the repository identifier only.
+
+### 12.2 The pod
+
+The person does not copy `.env` to the pod. The person types `HF_TOKEN` and
+`HF_REPO_ID` into the environment fields of the RunPod template. RunPod injects the
+values into the container, and no file on the pod holds them. The scripts then run
+without the `--env-file` flag.
+
+This spec configures no RunPod API key, because the person starts the pod through the
+RunPod web console. Pod automation is a separate project.
+
+### 12.3 MCP credentials
+
+A credential for an MCP server belongs in `.mcp.json` or in `~/.claude.json`. It does
+not belong in `.env`. Write the value as `${VARIABLE}` in `.mcp.json`, so that the file
+stays safe to commit.
+
+## 13. Publication and quantization
+
+The target is one HuggingFace repository. The identifier comes from `HF_REPO_ID`.
+
+```
+<HF_REPO_ID>
+  config.json
+  model.safetensors        141 MB, BF16
+  tokenizer.json
+  README.md
+  gguf/
+    xslm-70m-BF16.gguf     141 MB
+    xslm-70m-Q8_0.gguf      75 MB
+    xslm-70m-Q6_K.gguf      58 MB
+    xslm-70m-Q4_K_M.gguf    45 MB
+```
+
+The four GGUF names are the names that `llama-quantize` uses. `q8`, `q6`, and `q4` are
+not valid names.
+
+### 13.1 The two scripts
+
+`scripts/push_to_hub.py` pushes the safetensors file, the `config.json`, the
+`tokenizer.json`, and the generated model card. The script is idempotent, so a second
+run after a failure is safe.
+
+`scripts/quantize.sh` clones `llama.cpp`, builds the `llama-quantize` target, runs
+`convert_hf_to_gguf.py`, runs `llama-quantize` three times, and pushes the `gguf/`
+folder.
+
+### 13.2 The model card
+
+`push_to_hub.py` generates the card from `configs/base.yaml`. The numbers in the card
+therefore cannot disagree with the numbers of the run.
+
+The card holds:
+
+- The license from `MODEL_LICENSE`.
+- The attribution of `HuggingFaceFW/fineweb-edu`, which carries the ODC-By license.
+- The full training configuration.
+- A limitations section. This section repeats the text of section 1.1: the model
+  invents facts, and this result is expected at this scale.
+- A note that Q8_0 is the recommended quantized file, and that Q4_K_M at 70M
+  parameters is a demonstration only.

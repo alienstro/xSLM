@@ -5,3 +5,6 @@ data/
 *.bin
 out/
 .DS_Store
+.env
+llama.cpp/
+*.gguf
