@@ -33,6 +33,14 @@ numpy, Weights and Biases, llama.cpp for the GGUF conversion.
 - Every test runs on CPU. The full suite finishes in under 30 seconds.
 - The non-embedding parameter count stays between 49M and 51M.
 - Tokens for each optimizer step stay at 262,144, whatever the micro-batch is.
+- `uv` resolved transformers 5.17.0 and torch 2.14.0. Three differences from
+  transformers 4 govern this plan:
+  1. `PreTrainedModel` does not inherit `GenerationMixin`. Every causal model must
+     inherit it explicitly.
+  2. `state_dict()` holds `lm_head.weight` even when the weights are tied, because
+     PyTorch writes a tied parameter under every registered name.
+  3. `TrainingArguments` no longer accepts `include_tokens_per_second`. The smoke test
+     measures the throughput with its own clock.
 
 ---
 
@@ -747,7 +755,9 @@ def test_the_state_dictionary_matches_llama_key_for_key():
 def test_the_embedding_is_tied_to_the_output():
     model = build_model(tiny())
     assert model.lm_head.weight is model.model.embed_tokens.weight
-    assert "lm_head.weight" not in model.state_dict()
+    # PyTorch writes a tied parameter under every registered name, so the key stays.
+    state = model.state_dict()
+    assert torch.equal(state["lm_head.weight"], state["model.embed_tokens.weight"])
 
 
 def test_the_loss_equals_a_hand_written_next_token_cross_entropy():
@@ -1751,7 +1761,6 @@ def main():
         save_total_limit=settings["save_total_limit"],
         report_to=resolve_report_to(),
         seed=settings["seed"],
-        include_tokens_per_second=True,
     )
 
     callbacks = []
@@ -1775,12 +1784,13 @@ def main():
     result = trainer.train()
 
     if arguments.smoke:
-        throughput = result.metrics["train_tokens_per_second"]
+        # transformers 5 removed include_tokens_per_second, so measure it here.
         tokens_per_step = (
             settings["per_device_train_batch_size"]
             * settings["gradient_accumulation_steps"]
             * seq_len
         )
+        throughput = arguments.smoke * tokens_per_step / result.metrics["train_runtime"]
         seconds = settings["time_limit_minutes"] * 60
         print(f"train_tokens_per_second = {throughput:.0f}")
         if torch.cuda.is_available():
