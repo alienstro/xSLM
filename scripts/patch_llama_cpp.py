@@ -22,8 +22,11 @@ quality. Never guess this value.
 import sys
 from pathlib import Path
 
-CHKHSH = "0f6b248a3682e72fe6786d07086d3e4c6b9606623781735781214ee80bc733eb"
+# The converter prints this value when it fails. Never compute it by hand: the
+# probe string belongs to the converter, and a copy of it drifts.
+CHKHSH = "84585b9518029852d17987d7b642aba9cc67ce328a318273ea9a60a3b78b85cb"
 PRE_TYPE = "refact"
+FUNCTION = "def get_vocab_base_pre"
 ANCHOR = '        if chkhsh == "'
 ADDITION = f'''        if chkhsh == "{CHKHSH}":
             # The xSLM tokenizer splits each digit, then applies the GPT-2 pattern.
@@ -37,7 +40,12 @@ def patch(path):
     if CHKHSH in text:
         print(f"{path} already holds the xSLM checksum.")
         return False
-    index = text.find(ANCHOR)
+    # The file holds the string chkhsh in more than one method, so start the search
+    # inside the method that reads the table.
+    start = text.find(FUNCTION)
+    if start < 0:
+        raise SystemExit(f"{path} holds no {FUNCTION}. The converter changed.")
+    index = text.find(ANCHOR, start)
     if index < 0:
         raise SystemExit(f"{path} holds no checksum table. The converter changed.")
     Path(path).write_text(text[:index] + ADDITION + text[index:])

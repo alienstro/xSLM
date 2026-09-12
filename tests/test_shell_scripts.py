@@ -196,12 +196,21 @@ def test_the_patch_writes_the_pre_type_that_matches_the_tokenizer(tmp_path):
 
     assert PRE_TYPE == "refact"
     target = tmp_path / "base.py"
-    target.write_text('    def get_vocab_base_pre(self):\n        if chkhsh == "abc":\n            res = "llama-bpe"\n')
+    # An earlier method also holds the string chkhsh. The patch must skip it.
+    target.write_text(
+        '    def _create_vocab_sentencepiece(self):\n'
+        '        if chkhsh == "zzz":\n'
+        '            res = "other"\n'
+        '    def get_vocab_base_pre(self):\n'
+        '        if chkhsh == "abc":\n'
+        '            res = "llama-bpe"\n'
+    )
     assert patch(target) is True
     text = target.read_text()
     assert CHKHSH in text
     assert f'res = "{PRE_TYPE}"' in text
     assert text.index(CHKHSH) < text.index('"abc"')
+    assert text.index('"zzz"') < text.index(CHKHSH)
     # A second run must change nothing, because the script runs on every build.
     assert patch(target) is False
     assert target.read_text() == text
