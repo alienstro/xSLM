@@ -173,3 +173,35 @@ def test_pod_can_repair_a_stale_connection_string():
     text = (SCRIPTS / "pod.sh").read_text()
     assert "reconnect)" in text
     assert "runpod.py ssh" in text
+
+
+def test_quantize_patches_the_converter_before_it_converts():
+    """The patch must run first. The converter raises on an unknown tokenizer."""
+    text = (SCRIPTS / "quantize.sh").read_text()
+    patch_at = text.index("patch_llama_cpp.py")
+    convert_at = text.index("convert_hf_to_gguf.py")
+    assert patch_at < convert_at
+
+
+def test_the_patch_writes_the_pre_type_that_matches_the_tokenizer(tmp_path):
+    """The tokenizer splits each digit, so the pre type must split each digit.
+
+    llama.cpp calls that regex pair refact. A wrong value raises no error and only
+    makes llama.cpp split the text differently from the training.
+    """
+    import sys
+
+    sys.path.insert(0, str(SCRIPTS))
+    from patch_llama_cpp import CHKHSH, PRE_TYPE, patch
+
+    assert PRE_TYPE == "refact"
+    target = tmp_path / "base.py"
+    target.write_text('    def get_vocab_base_pre(self):\n        if chkhsh == "abc":\n            res = "llama-bpe"\n')
+    assert patch(target) is True
+    text = target.read_text()
+    assert CHKHSH in text
+    assert f'res = "{PRE_TYPE}"' in text
+    assert text.index(CHKHSH) < text.index('"abc"')
+    # A second run must change nothing, because the script runs on every build.
+    assert patch(target) is False
+    assert target.read_text() == text

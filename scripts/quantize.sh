@@ -26,6 +26,9 @@ if [ ! -x "$LLAMA_DIR/build/bin/llama-quantize" ]; then
     cmake --build "$LLAMA_DIR/build" --target llama-quantize -j "$(nproc)"
 fi
 
+# The converter knows no checksum for a tokenizer that nobody has published.
+uv run python scripts/patch_llama_cpp.py "$LLAMA_DIR/conversion/base.py"
+
 uv run --with gguf --with sentencepiece --with protobuf python "$LLAMA_DIR/convert_hf_to_gguf.py" "$STAGING" \
     --outfile "$OUTPUT/$NAME-BF16.gguf" \
     --outtype bf16
