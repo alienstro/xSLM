@@ -8,6 +8,7 @@ structure, and it invents facts. That is the expected result at this scale.
 
 - Design: `docs/superpowers/specs/2026-09-12-xslm-design.md`
 - Plan: `docs/superpowers/plans/2026-09-12-xslm-implementation.md`
+- **Run book: `docs/RUNBOOK.md`** — the ordered procedure and every trap this project met
 
 ## Setup
 

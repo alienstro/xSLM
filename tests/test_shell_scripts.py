@@ -146,3 +146,10 @@ def test_pod_refreshes_the_heartbeat_when_it_reads_the_pod():
     text = (SCRIPTS / "pod.sh").read_text()
     assert "heartbeat)" in text
     assert "touch $REMOTE_DIR/out/HEARTBEAT" in text
+
+
+def test_pod_can_repair_a_stale_connection_string():
+    """RunPod maps a new public port on every container restart."""
+    text = (SCRIPTS / "pod.sh").read_text()
+    assert "reconnect)" in text
+    assert "runpod.py ssh" in text

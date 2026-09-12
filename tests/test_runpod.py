@@ -49,3 +49,17 @@ def test_the_stop_request_posts_to_the_stop_endpoint():
     request = build_request("POST", "pods/abc123/stop", "a-key")
     assert request.full_url == "https://rest.runpod.io/v1/pods/abc123/stop"
     assert request.get_method() == "POST"
+
+
+def test_the_ssh_string_is_built_from_the_pod_details():
+    from runpod import ssh_string_for
+
+    pod = {"publicIp": "1.2.3.4", "portMappings": {"22": 12152}}
+    assert ssh_string_for(pod) == "root@1.2.3.4 -p 12152 -i ~/.ssh/id_ed25519"
+
+
+def test_a_pod_without_an_exposed_port_is_reported():
+    from runpod import ssh_string_for
+
+    with pytest.raises(SystemExit, match="TCP port 22"):
+        ssh_string_for({"publicIp": "1.2.3.4", "portMappings": {}})

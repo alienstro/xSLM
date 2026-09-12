@@ -109,6 +109,20 @@ verify)
     # The pod disk holds the only copy of the model until this passes.
     uv run --env-file "$ENV_FILE" scripts/verify_upload.py
     ;;
+reconnect)
+    # The container restart gives the pod a new public port, so POD_SSH goes stale.
+    # Read the current mapping and rewrite the value in .env.
+    NEW="$(uv run --env-file "$ENV_FILE" scripts/runpod.py ssh)"
+    python3 - "$ENV_FILE" "$NEW" <<'PYTHON'
+import pathlib, re, sys
+path, value = pathlib.Path(sys.argv[1]), sys.argv[2]
+text = path.read_text()
+line = f'POD_SSH="{value}"'
+text = re.sub(r'^POD_SSH=.*$', line, text, flags=re.M) if re.search(r'^POD_SSH=', text, flags=re.M) else text.rstrip("\n") + f"\n{line}\n"
+path.write_text(text)
+print(f"POD_SSH updated: {value}")
+PYTHON
+    ;;
 pods)
     uv run --env-file "$ENV_FILE" scripts/runpod.py list
     ;;
@@ -119,7 +133,7 @@ terminate)
     uv run --env-file "$ENV_FILE" scripts/runpod.py terminate "$@"
     ;;
 *)
-    echo "Usage: pod.sh {check|sync|secrets|setup|run <command>|watch [name] [lines]|sessions|heartbeat|verify|pods|terminate --yes}" >&2
+    echo "Usage: pod.sh {check|sync|secrets|setup|run <command>|watch [name] [lines]|sessions|heartbeat|verify|reconnect|pods|terminate --yes}" >&2
     exit 1
     ;;
 esac

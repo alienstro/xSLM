@@ -49,6 +49,22 @@ def guard_terminate(pod_id, confirmed):
     return pod_id
 
 
+def ssh_string_for(pod, key_path="~/.ssh/id_ed25519"):
+    """Return the direct TCP connection string for one pod.
+
+    RunPod maps a new public port every time the container restarts, so the value
+    in .env goes stale. This function reads the current mapping.
+    """
+    port = (pod.get("portMappings") or {}).get("22")
+    if not port:
+        raise SystemExit(
+            "The pod exposes no TCP port 22, so only the proxy is reachable.\n"
+            "The proxy serves interactive terminals only, and carries no rsync.\n"
+            "Redeploy the pod with TCP port 22 exposed."
+        )
+    return f"root@{pod['publicIp']} -p {port} -i {key_path}"
+
+
 def list_pods(token):
     """Print one line for each pod: identifier, name, state, and cost."""
     payload = send(build_request("GET", "pods", token))
@@ -67,7 +83,7 @@ def list_pods(token):
 
 def main():
     parser = argparse.ArgumentParser(description="Read and terminate RunPod pods.")
-    parser.add_argument("command", choices=["list", "stop", "terminate"])
+    parser.add_argument("command", choices=["list", "ssh", "stop", "terminate"])
     parser.add_argument("--pod-id", default=None)
     parser.add_argument("--yes", action="store_true", help="Confirm the termination.")
     arguments = parser.parse_args()
@@ -79,6 +95,12 @@ def main():
 
     if arguments.command == "list":
         list_pods(token)
+        return
+
+    if arguments.command == "ssh":
+        pod_id = arguments.pod_id or require("RUNPOD_POD_ID")
+        pod = send(build_request("GET", f"pods/{pod_id}", token))
+        print(ssh_string_for(pod))
         return
 
     if arguments.command == "stop":
