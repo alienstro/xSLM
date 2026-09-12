@@ -123,24 +123,31 @@ class XSLMModel(LlamaPreTrainedModel):
             for _ in range(config.num_hidden_layers)
         )
         self.norm = RMSNorm(config.hidden_size, config.rms_norm_eps)
-        head_dim = config.hidden_size // config.num_attention_heads
-        cos, sin = build_rope_cache(
-            head_dim,
-            config.max_position_embeddings,
-            rope_theta_of(config),
-            torch.device("cpu"),
-            torch.float32,
-        )
-        # persistent=False keeps the tables out of the state dictionary, so the
-        # parity test against LlamaForCausalLM passes.
-        self.register_buffer("rope_cos", cos, persistent=False)
-        self.register_buffer("rope_sin", sin, persistent=False)
+        self.head_dim = config.hidden_size // config.num_attention_heads
+        # The tables are computed, never loaded. A buffer would have to choose between
+        # two failures: a persistent buffer joins the state dictionary and breaks the
+        # parity with LlamaForCausalLM, and a non persistent buffer keeps the empty
+        # memory that from_pretrained leaves behind, because no checkpoint fills it.
+        # The cache below holds one table for each device and dtype that asks for it.
+        self._rope_cache = {}
         self.post_init()
+
+    def rope_tables(self, device, dtype):
+        """Return the cosine table and the sine table for one device and dtype."""
+        key = (str(device), dtype)
+        if key not in self._rope_cache:
+            self._rope_cache[key] = build_rope_cache(
+                self.head_dim,
+                self.config.max_position_embeddings,
+                rope_theta_of(self.config),
+                device,
+                dtype,
+            )
+        return self._rope_cache[key]
 
     def forward(self, input_ids):
         hidden_states = self.embed_tokens(input_ids)
-        cos = self.rope_cos.to(hidden_states.dtype)
-        sin = self.rope_sin.to(hidden_states.dtype)
+        cos, sin = self.rope_tables(hidden_states.device, hidden_states.dtype)
         for layer in self.layers:
             hidden_states = layer(hidden_states, cos, sin)
         return self.norm(hidden_states)
