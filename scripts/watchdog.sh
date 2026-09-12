@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 UV="${UV:-/root/.local/bin/uv}"
 DEADLINE_MINUTES="${1:-300}"
-HEARTBEAT_GRACE="${2:-30}"
+HEARTBEAT_GRACE="${2:-15}"
 STARTED_AT=$(date +%s)
 LIMIT=$((DEADLINE_MINUTES * 60))
 GRACE=$((HEARTBEAT_GRACE * 60))
