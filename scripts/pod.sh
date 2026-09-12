@@ -79,7 +79,14 @@ run)
     shift
     # Name the session after the command, so a second job cannot collide with a
     # job that is still running.
-    SESSION="$(basename "${1%.*}")"
+    # Name the session after the script, not after an interpreter such as bash.
+    SESSION=""
+    for ARGUMENT in "$@"; do
+        case "$ARGUMENT" in
+        *.sh|*.py) SESSION="$(basename "${ARGUMENT%.*}")"; break ;;
+        esac
+    done
+    [ -n "$SESSION" ] || SESSION="$(basename "${1%.*}")"
     LOG="out/$SESSION.log"
     remote "cd $REMOTE_DIR && mkdir -p out && tmux new-session -d -s \"$SESSION\" \"$UV run --env-file .env $* 2>&1 | tee $LOG\""
     echo "Started tmux session '$SESSION'. Read it with: scripts/pod.sh watch $SESSION"

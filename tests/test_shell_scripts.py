@@ -127,3 +127,8 @@ def test_the_data_pipeline_skips_a_tokenizer_that_exists():
     text = (SCRIPTS / "run_data_pipeline.sh").read_text()
     assert "data/tokenizer.json" in text
     subprocess.run(["bash", "-n", str(SCRIPTS / "run_data_pipeline.sh")], check=True)
+
+
+def test_pod_names_the_session_after_the_script_not_the_interpreter():
+    """'run bash scripts/x.sh' must name the session x, not bash."""
+    assert "*.sh|*.py)" in (SCRIPTS / "pod.sh").read_text()
