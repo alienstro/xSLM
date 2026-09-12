@@ -188,15 +188,28 @@ class XSLMForCausalLM(LlamaPreTrainedModel, GenerationMixin):
     def get_output_embeddings(self):
         return self.lm_head
 
-    def forward(self, input_ids=None, labels=None, **kwargs):
+    def forward(self, input_ids=None, labels=None, num_items_in_batch=None, **kwargs):
+        """Return the logits, and the loss when the caller gives the labels.
+
+        Trainer reads this signature. A forward that hides num_items_in_batch inside
+        **kwargs tells Trainer that the model already divided the loss by the token
+        count, so Trainer skips its own division by gradient_accumulation_steps. The
+        gradient then grows by that factor, and max_grad_norm clips every step.
+        Naming the parameter, and dividing by it, keeps that contract.
+        """
         hidden_states = self.model(input_ids)
         logits = self.lm_head(hidden_states).float()
         loss = None
         if labels is not None:
-            loss = F.cross_entropy(
-                logits[:, :-1].reshape(-1, logits.size(-1)),
-                labels[:, 1:].reshape(-1),
-            )
+            shifted_logits = logits[:, :-1].reshape(-1, logits.size(-1))
+            shifted_labels = labels[:, 1:].reshape(-1)
+            if num_items_in_batch is None:
+                loss = F.cross_entropy(shifted_logits, shifted_labels)
+            else:
+                # The count spans every micro batch of the step, so the sum of the
+                # micro batch gradients equals the gradient of the whole batch.
+                total = F.cross_entropy(shifted_logits, shifted_labels, reduction="sum")
+                loss = total / num_items_in_batch
         return CausalLMOutputWithPast(loss=loss, logits=logits)
 
 
