@@ -480,9 +480,24 @@ The card holds:
 The person deploys the pod in the RunPod web console. The person then gives the SSH
 command to the agent. The agent runs every step over that one SSH connection.
 
-This spec configures no RunPod API key and no RunPod MCP server. The person keeps the
-only control that starts a charge and the only control that stops it. A defect in a
-script can therefore never leave a GPU billing.
+The person keeps the only control that starts a charge. No script deploys a pod.
+
+### 14.0 The terminate command
+
+The first version of this spec configured no RunPod API key at all. The person then
+asked for a way to stop the pod from the agent, so that no pod keeps billing after the
+run. `RUNPOD_API_KEY` and `RUNPOD_POD_ID` therefore join the `.env` file, and
+`scripts/runpod.py` reads the RunPod REST API.
+
+Two rules limit the new risk:
+
+1. `pod.sh terminate` needs the `--yes` flag. Without the flag the command stops and
+   prints what the termination destroys.
+2. No step of the pipeline calls terminate. The agent runs it only after the
+   HuggingFace push is verified, because a terminate before that push destroys the
+   only copy of the model.
+
+This spec still configures no RunPod MCP server, and no script deploys a pod.
 
 ### 14.1 Setup
 

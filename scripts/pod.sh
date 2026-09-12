@@ -89,8 +89,17 @@ watch)
 sessions)
     remote "tmux list-sessions 2>/dev/null || echo 'no tmux session'"
     ;;
+pods)
+    uv run --env-file "$ENV_FILE" scripts/runpod.py list
+    ;;
+terminate)
+    # Warning: this destroys the pod disk and cannot be undone. Never run it
+    # before the HuggingFace push is verified.
+    shift
+    uv run --env-file "$ENV_FILE" scripts/runpod.py terminate "$@"
+    ;;
 *)
-    echo "Usage: pod.sh {check|sync|secrets|setup|run <command>|watch [name] [lines]|sessions}" >&2
+    echo "Usage: pod.sh {check|sync|secrets|setup|run <command>|watch [name] [lines]|sessions|pods|terminate --yes}" >&2
     exit 1
     ;;
 esac

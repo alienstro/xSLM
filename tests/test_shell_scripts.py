@@ -90,3 +90,21 @@ def test_pod_passes_the_env_file_to_uv_when_it_exists():
 def test_pod_watch_turns_carriage_returns_into_lines():
     """tqdm writes with \\r, so a plain tail returns one enormous line."""
     assert "tr '\\\\r' '\\\\n'" in (SCRIPTS / "pod.sh").read_text()
+
+
+def test_the_env_example_names_the_runpod_key():
+    example = (SCRIPTS.parent / ".env.example").read_text()
+    assert "RUNPOD_API_KEY=" in example
+    assert "RUNPOD_POD_ID=" in example
+
+
+def test_pod_offers_pods_and_terminate():
+    text = (SCRIPTS / "pod.sh").read_text()
+    assert "pods)" in text
+    assert "terminate)" in text
+
+
+def test_pod_terminate_demands_the_confirmation():
+    """A terminate that runs on its own would destroy an unpublished model."""
+    text = (SCRIPTS / "pod.sh").read_text()
+    assert "--yes" in text
