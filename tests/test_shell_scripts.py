@@ -108,3 +108,7 @@ def test_pod_terminate_demands_the_confirmation():
     """A terminate that runs on its own would destroy an unpublished model."""
     text = (SCRIPTS / "pod.sh").read_text()
     assert "--yes" in text
+
+
+def test_pod_offers_the_upload_verification():
+    assert "verify)" in (SCRIPTS / "pod.sh").read_text()
