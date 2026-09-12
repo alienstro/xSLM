@@ -33,8 +33,11 @@ fi
 # ssh takes the whole string, but rsync needs the host alone and the flags inside -e.
 SSH_HOST="${POD_SSH%% *}"
 SSH_EXTRA=""
+SCP_FLAGS=""
 if [ "$SSH_HOST" != "$POD_SSH" ]; then
     SSH_EXTRA="${POD_SSH#* }"
+    # scp spells the port -P, not -p.
+    SCP_FLAGS="$(echo "$SSH_EXTRA" | sed "s/-p /-P /")"
 fi
 
 remote() {
@@ -63,16 +66,29 @@ setup)
     remote "cd $REMOTE_DIR && $UV sync"
     remote "cd $REMOTE_DIR && $UV run pytest -q"
     ;;
+secrets)
+    # The RunPod template held no environment fields, so copy .env to the pod.
+    # The file dies when the pod is terminated.
+    scp $SSH_FLAGS $SCP_FLAGS "$ENV_FILE" "$SSH_HOST:$REMOTE_DIR/.env"
+    remote "chmod 600 $REMOTE_DIR/.env && echo 'Wrote .env with mode 600.'"
+    ;;
 run)
     shift
-    remote "cd $REMOTE_DIR && mkdir -p out && tmux new-session -d -s train \"$UV run $* 2>&1 | tee out/train.log\""
-    echo "Started in tmux. Read it with: scripts/pod.sh watch"
+    # Name the session after the command, so a second job cannot collide with a
+    # job that is still running.
+    SESSION="$(basename "${1%.*}")"
+    LOG="out/$SESSION.log"
+    remote "cd $REMOTE_DIR && mkdir -p out && tmux new-session -d -s \"$SESSION\" \"$UV run --env-file .env $* 2>&1 | tee $LOG\""
+    echo "Started tmux session '$SESSION'. Read it with: scripts/pod.sh watch $SESSION"
     ;;
 watch)
-    remote "tail -n ${2:-20} $REMOTE_DIR/out/train.log"
+    remote "tail -n ${3:-20} $REMOTE_DIR/out/${2:-train}.log"
+    ;;
+sessions)
+    remote "tmux list-sessions 2>/dev/null || echo 'no tmux session'"
     ;;
 *)
-    echo "Usage: pod.sh {check|sync|setup|run <command>|watch [lines]}" >&2
+    echo "Usage: pod.sh {check|sync|secrets|setup|run <command>|watch [name] [lines]|sessions}" >&2
     exit 1
     ;;
 esac

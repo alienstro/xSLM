@@ -69,3 +69,19 @@ def test_pod_gives_rsync_the_port_and_the_key():
     text = (SCRIPTS / "pod.sh").read_text()
     assert "SSH_EXTRA" in text
     assert '-e "ssh $SSH_FLAGS $SSH_EXTRA"' in text
+
+
+def test_pod_can_copy_the_env_file_to_the_pod():
+    text = (SCRIPTS / "pod.sh").read_text()
+    assert "secrets)" in text
+    assert "chmod 600" in text
+
+
+def test_pod_names_each_tmux_session_after_its_command():
+    """A fixed session name would collide with a job that is still running."""
+    text = (SCRIPTS / "pod.sh").read_text()
+    assert "-s \\\"$SESSION\\\"" in text
+
+
+def test_pod_passes_the_env_file_to_uv_when_it_exists():
+    assert "--env-file .env" in (SCRIPTS / "pod.sh").read_text()
