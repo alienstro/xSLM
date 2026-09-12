@@ -82,7 +82,9 @@ run)
     echo "Started tmux session '$SESSION'. Read it with: scripts/pod.sh watch $SESSION"
     ;;
 watch)
-    remote "tail -n ${3:-20} $REMOTE_DIR/out/${2:-train}.log"
+    # tqdm writes progress with a carriage return, so one line can hold megabytes.
+    # Turn every carriage return into a newline before tail reads the file.
+    remote "tr '\\r' '\\n' < $REMOTE_DIR/out/${2:-train}.log | grep -v '^\$' | tail -n ${3:-20}"
     ;;
 sessions)
     remote "tmux list-sessions 2>/dev/null || echo 'no tmux session'"

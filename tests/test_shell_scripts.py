@@ -85,3 +85,8 @@ def test_pod_names_each_tmux_session_after_its_command():
 
 def test_pod_passes_the_env_file_to_uv_when_it_exists():
     assert "--env-file .env" in (SCRIPTS / "pod.sh").read_text()
+
+
+def test_pod_watch_turns_carriage_returns_into_lines():
+    """tqdm writes with \\r, so a plain tail returns one enormous line."""
+    assert "tr '\\\\r' '\\\\n'" in (SCRIPTS / "pod.sh").read_text()
