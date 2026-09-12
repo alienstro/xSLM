@@ -43,3 +43,9 @@ def test_every_request_carries_a_user_agent():
     """Cloudflare answers 403 error 1010 when the User-Agent header is absent."""
     request = build_request("GET", "pods", "a-key")
     assert request.get_header("User-agent")
+
+
+def test_the_stop_request_posts_to_the_stop_endpoint():
+    request = build_request("POST", "pods/abc123/stop", "a-key")
+    assert request.full_url == "https://rest.runpod.io/v1/pods/abc123/stop"
+    assert request.get_method() == "POST"

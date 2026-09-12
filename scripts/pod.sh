@@ -62,8 +62,11 @@ sync)
         ./ "$SSH_HOST:$REMOTE_DIR/"
     ;;
 setup)
+    # Keep the caches on the volume, so a container restart does not download
+    # the CUDA wheels again.
     remote "command -v $UV || curl -LsSf https://astral.sh/uv/install.sh | sh"
-    remote "cd $REMOTE_DIR && $UV sync"
+    remote "grep -q UV_CACHE_DIR /root/.bashrc || printf 'export UV_CACHE_DIR=/workspace/.uv-cache\nexport HF_HOME=/workspace/.hf\n' >> /root/.bashrc"
+    remote "cd $REMOTE_DIR && UV_CACHE_DIR=/workspace/.uv-cache $UV sync"
     remote "cd $REMOTE_DIR && $UV run pytest -q"
     ;;
 secrets)

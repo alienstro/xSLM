@@ -67,7 +67,7 @@ def list_pods(token):
 
 def main():
     parser = argparse.ArgumentParser(description="Read and terminate RunPod pods.")
-    parser.add_argument("command", choices=["list", "terminate"])
+    parser.add_argument("command", choices=["list", "stop", "terminate"])
     parser.add_argument("--pod-id", default=None)
     parser.add_argument("--yes", action="store_true", help="Confirm the termination.")
     arguments = parser.parse_args()
@@ -79,6 +79,14 @@ def main():
 
     if arguments.command == "list":
         list_pods(token)
+        return
+
+    if arguments.command == "stop":
+        # Stop keeps the volume and stops the GPU charge. Use it when the work is
+        # not published yet, so that nothing is lost.
+        pod_id = arguments.pod_id or require("RUNPOD_POD_ID")
+        send(build_request("POST", f"pods/{pod_id}/stop", token))
+        print(f"Stopped {pod_id}. The GPU charge has stopped and the volume remains.")
         return
 
     pod_id = guard_terminate(arguments.pod_id or optional("RUNPOD_POD_ID", ""), arguments.yes)

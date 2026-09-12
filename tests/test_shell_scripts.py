@@ -112,3 +112,18 @@ def test_pod_terminate_demands_the_confirmation():
 
 def test_pod_offers_the_upload_verification():
     assert "verify)" in (SCRIPTS / "pod.sh").read_text()
+
+
+def test_the_watchdog_stops_the_pod_when_the_upload_is_incomplete():
+    """A terminate before the push would destroy the only copy of the model."""
+    text = (SCRIPTS / "watchdog.sh").read_text()
+    assert "verify_upload.py" in text
+    assert "runpod.py stop" in text
+    assert "runpod.py terminate --yes" in text
+    subprocess.run(["bash", "-n", str(SCRIPTS / "watchdog.sh")], check=True)
+
+
+def test_the_data_pipeline_skips_a_tokenizer_that_exists():
+    text = (SCRIPTS / "run_data_pipeline.sh").read_text()
+    assert "data/tokenizer.json" in text
+    subprocess.run(["bash", "-n", str(SCRIPTS / "run_data_pipeline.sh")], check=True)
