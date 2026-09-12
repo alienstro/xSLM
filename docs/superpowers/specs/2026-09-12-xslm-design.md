@@ -176,13 +176,31 @@ no wasted computation.
 | Schedule | 200 steps of linear warmup, then cosine decay to 1e-4 |
 | Gradient clipping | 1.0 on the global norm |
 | Precision | BF16 mixed, `bf16=True` |
-| Micro-batch size | 32 sequences, raised until VRAM reaches about 21 GB |
-| Gradient accumulation | 8 steps |
-| Tokens per optimizer step | 32 * 8 * 1024 = 262,144 |
+| Micro-batch size | 16 sequences, raised after the smoke test reports the true VRAM use |
+| Gradient accumulation | 16 steps |
+| Tokens per optimizer step | 16 * 16 * 1024 = 262,144 |
+| `save_total_limit` | 2 |
 | Gradient checkpointing | Off. It saves memory the budget does not need and costs 30 percent speed |
 | `torch.compile` | Off by default. It is an optional flag, because compilation can fail on a 3090 driver |
 | Dataloader workers | 4 |
 | `report_to` | `["wandb"]` when `WANDB_API_KEY` exists, else `[]` |
+
+The logit tensor sets the peak VRAM, not the optimizer. The tensor holds
+`micro_batch * 1024 * 32768` elements. At micro-batch 32 that is 1.07e9 elements, which
+is 2.1 GB in BF16. The cross-entropy loss upcasts the tensor to FP32, which adds 4.3 GB,
+and the backward pass adds the gradient. The three copies cost about 8.5 GB, and the
+total approaches 18 GB of the 24 GB card.
+
+The optimizer state costs 1.1 GB: 282 MB of FP32 weights, 282 MB of gradients, and
+564 MB for the two AdamW moments.
+
+The design therefore starts at micro-batch 16 and keeps the same 262,144 tokens for
+each optimizer step. The peak VRAM falls to about 8 GB. Section 6.1 raises the value
+after the smoke test measures the true use.
+
+`save_total_limit` is 2. The `Trainer` default keeps every checkpoint. One checkpoint
+holds 282 MB of weights and 564 MB of optimizer state. Ten checkpoints would waste
+8.5 GB and could fill the disk during the run.
 
 ### 6.1 Setting the step count
 
@@ -196,6 +214,10 @@ The procedure is:
 3. Write that number into the configuration and start the full run.
 
 The starting estimate is 2,600 steps. The measured value replaces it.
+
+The smoke test also prints `torch.cuda.max_memory_allocated()`. If the peak stays below
+12 GB, raise the micro-batch to 24 and halve the accumulation to keep the tokens for
+each optimizer step at 262,144.
 
 ### 6.2 Callbacks
 
@@ -286,10 +308,34 @@ The design does not shorten the training loop to save those 13 minutes, because 
 
 ### 9.1 Pod requirements
 
-- One RTX 3090 with 24 GB of VRAM.
-- A container disk of at least 30 GB, because `train.bin` needs 2 GB and the
-  HuggingFace cache needs room.
-- A CUDA 12.1 or later PyTorch image.
+| Field | Value | Reason |
+|---|---|---|
+| GPU | One RTX 3090, 24 GB | The compute budget of section 2 assumes this card |
+| GPU count | 1 | The spec excludes multi-GPU training |
+| Cloud | Community | About half the price of Secure Cloud |
+| Instance pricing | On-Demand | Never Spot |
+| Image | `runpod/pytorch`, CUDA 12.1 or later | Supplies the CUDA driver and a working `sshd` |
+| Container disk | 20 GB | RunPod erases this disk when the pod stops |
+| Volume disk | 30 GB, mounted at `/workspace` | This disk survives a pod stop |
+| SSH terminal access | On | The control channel of section 14 |
+| Start Jupyter notebook | Off | The agent works over SSH, so Jupyter adds an unused service |
+
+> Warning: never select Spot or Interruptible pricing. RunPod reclaims a Spot pod after
+> about 5 seconds of notice. The 180 minute loop would stop at an arbitrary point.
+
+The project lives in `/workspace/xSLM`. The `.venv`, the `data` folder, and the `out`
+folder all live under that path. A pod stop therefore loses no tokens and no
+checkpoint, and the resume control of section 10 works.
+
+`pod.sh` runs two checks after the pod boots:
+
+```bash
+nvidia-smi          # the driver is 525 or later, and 24576 MiB is free
+cmake --version     # the image can build llama-quantize
+```
+
+If `cmake` is absent, `pod.sh` installs it with `apt-get`. The check costs three
+seconds and prevents a failure at minute 240.
 
 ## 10. Risks
 
