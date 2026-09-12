@@ -91,7 +91,13 @@ run)
     remote "cd $REMOTE_DIR && mkdir -p out && tmux new-session -d -s \"$SESSION\" \"$UV run --env-file .env $* 2>&1 | tee $LOG\""
     echo "Started tmux session '$SESSION'. Read it with: scripts/pod.sh watch $SESSION"
     ;;
+heartbeat)
+    remote "mkdir -p $REMOTE_DIR/out && touch $REMOTE_DIR/out/HEARTBEAT"
+    ;;
 watch)
+    # Every read refreshes the heartbeat, so the dead-man switch needs no
+    # discipline from the agent. A silent agent lets the watchdog stop the pod.
+    remote "mkdir -p $REMOTE_DIR/out && touch $REMOTE_DIR/out/HEARTBEAT"
     # tqdm writes progress with a carriage return, so one line can hold megabytes.
     # Turn every carriage return into a newline before tail reads the file.
     remote "tr '\\r' '\\n' < $REMOTE_DIR/out/${2:-train}.log | grep -v '^\$' | tail -n ${3:-20}"
@@ -113,7 +119,7 @@ terminate)
     uv run --env-file "$ENV_FILE" scripts/runpod.py terminate "$@"
     ;;
 *)
-    echo "Usage: pod.sh {check|sync|secrets|setup|run <command>|watch [name] [lines]|sessions|verify|pods|terminate --yes}" >&2
+    echo "Usage: pod.sh {check|sync|secrets|setup|run <command>|watch [name] [lines]|sessions|heartbeat|verify|pods|terminate --yes}" >&2
     exit 1
     ;;
 esac

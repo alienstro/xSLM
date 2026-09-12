@@ -132,3 +132,17 @@ def test_the_data_pipeline_skips_a_tokenizer_that_exists():
 def test_pod_names_the_session_after_the_script_not_the_interpreter():
     """'run bash scripts/x.sh' must name the session x, not bash."""
     assert "*.sh|*.py)" in (SCRIPTS / "pod.sh").read_text()
+
+
+def test_the_watchdog_stops_the_pod_when_the_agent_stops_checking_in():
+    """A dead agent means nobody will push the model, so the pod must stop."""
+    text = (SCRIPTS / "watchdog.sh").read_text()
+    assert "HEARTBEAT" in text
+    assert "HEARTBEAT_GRACE" in text
+
+
+def test_pod_refreshes_the_heartbeat_when_it_reads_the_pod():
+    """The heartbeat must refresh on its own, not depend on the agent remembering."""
+    text = (SCRIPTS / "pod.sh").read_text()
+    assert "heartbeat)" in text
+    assert "touch $REMOTE_DIR/out/HEARTBEAT" in text
