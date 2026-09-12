@@ -162,9 +162,16 @@ that point. A pod failure at minute 25 does not waste the tokenizer step.
 The training dataset reads `train.bin` through `numpy.memmap`. The operating system
 page cache holds the hot pages, so the 2 GB file needs no resident memory.
 
-Each sample picks a random offset and reads 1025 tokens. The first 1024 tokens are the
-input. The last 1024 tokens are the labels. There is no padding, no attention mask, and
-no wasted computation.
+Each sample picks a random offset and reads 1024 tokens. The sample sets `labels` equal
+to `input_ids`. There is no padding, no attention mask, and no wasted computation.
+
+> Warning: do not shift the labels in the dataset. `LlamaForCausalLM` shifts the logits
+> and the labels inside its loss function. A second shift in the dataset makes the model
+> predict two positions ahead. The loss still falls and the samples still read as
+> English, so no test that only watches the loss finds this defect.
+
+A test asserts that the loss of the model equals a hand-written cross entropy between
+`logits[:, :-1]` and `input_ids[:, 1:]`. This test finds a double shift.
 
 ## 6. Training configuration
 
@@ -272,7 +279,7 @@ suite finishes in under 30 seconds.
 | Causal mask | Changing the token at position `t` does not change the logits at any position below `t` |
 | Forward shapes | The logits have shape `(B, T, vocab)` and the loss is a scalar |
 | Weight tying | `lm_head.weight` is the same object as the embedding weight |
-| Label shift | A packed sample's labels equal its inputs shifted by one position |
+| Label alignment | The model loss equals a hand-written cross entropy between `logits[:, :-1]` and `input_ids[:, 1:]` |
 | Memmap bounds | No sampled offset reads past the end of the file |
 | Overfit | 50 steps on 20 tokens drive the loss below 0.1 |
 | Parameter count | The production configuration reports 49M to 51M non-embedding parameters |
