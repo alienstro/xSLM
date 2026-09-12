@@ -9,8 +9,19 @@ REMOTE_DIR="/workspace/xSLM"
 SSH_FLAGS="-o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o StrictHostKeyChecking=accept-new"
 UV="/root/.local/bin/uv"
 
+# Read .env, so that one file holds every setting. An exported value wins over
+# the file, which lets the caller point at a second pod for one command.
+ENV_FILE="${ENV_FILE:-.env}"
+if [ -f "$ENV_FILE" ] && [ -z "${POD_SSH:-}" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$ENV_FILE"
+    set +a
+fi
+
 if [ -z "${POD_SSH:-}" ]; then
-    echo "POD_SSH is empty. Export the connection string from the RunPod console." >&2
+    echo "POD_SSH is empty. Write it in .env, or export it." >&2
+    echo 'Example: POD_SSH="root@1.2.3.4 -p 40123 -i ~/.ssh/id_ed25519"' >&2
     exit 1
 fi
 

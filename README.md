@@ -23,9 +23,16 @@ Deploy an RTX 3090 pod in the RunPod console: Community Cloud, On-Demand, SSH te
 access on, Jupyter off, container disk 20 GB, volume disk 30 GB. Set `HF_TOKEN`,
 `HF_REPO_ID`, `MODEL_LICENSE`, `WANDB_API_KEY`, and `WANDB_PROJECT` in the template.
 
-```bash
-export POD_SSH="root@<address> -p <port> -i ~/.ssh/id_ed25519"
+Write the SSH connection string that the console shows into `.env`:
 
+```bash
+POD_SSH="root@<address> -p <port> -i ~/.ssh/id_ed25519"
+```
+
+`pod.sh` reads `.env` itself. An exported `POD_SSH` wins over the file, which lets you
+point one command at a second pod.
+
+```bash
 scripts/pod.sh check                            # nvidia-smi, cmake, tmux, rsync
 scripts/pod.sh sync                             # rsync the working tree
 scripts/pod.sh setup                            # uv sync, then pytest on CUDA

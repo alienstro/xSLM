@@ -38,3 +38,21 @@ def test_pod_checks_for_cmake_before_the_run():
 
 def test_pod_never_sends_the_env_file_to_the_pod():
     assert "--exclude '.env'" in (SCRIPTS / "pod.sh").read_text()
+
+
+def test_pod_reads_the_env_file():
+    text = (SCRIPTS / "pod.sh").read_text()
+    assert "set -a" in text
+    assert ".env" in text
+
+
+def test_the_env_example_names_the_pod_connection():
+    example = (SCRIPTS.parent / ".env.example").read_text()
+    assert "POD_SSH" in example
+
+
+def test_the_env_example_names_every_variable_the_scripts_read():
+    example = (SCRIPTS.parent / ".env.example").read_text()
+    for name in ("HF_TOKEN", "HF_REPO_ID", "MODEL_LICENSE", "WANDB_API_KEY",
+                 "WANDB_PROJECT", "POD_SSH"):
+        assert f"{name}=" in example

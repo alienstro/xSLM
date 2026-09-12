@@ -388,7 +388,15 @@ MODEL_LICENSE=apache-2.0
 # Weights and Biases. The training run continues if this value is absent.
 WANDB_API_KEY=
 WANDB_PROJECT=xslm
+
+# The SSH connection string that the RunPod console shows. Keep the quotes,
+# because the value holds spaces. pod.sh reads this file.
+POD_SSH=""
 ```
+
+`POD_SSH` is not a secret, but it changes with every pod, so it belongs with the other
+settings and not in the repository. `pod.sh` reads `.env` directly, because
+`uv run --env-file` reaches Python scripts only. An exported value wins over the file.
 
 > Warning: a fine-grained token limits the damage if the value leaks. A classic write
 > token can rewrite every repository that the account owns. Use a fine-grained token.
