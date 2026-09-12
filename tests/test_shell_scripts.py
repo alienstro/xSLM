@@ -19,6 +19,17 @@ def test_quantize_builds_every_requested_type():
         assert quant in text
 
 
+def test_quantize_gives_the_converter_the_vocabulary_modules():
+    """The converter imports sentencepiece before it reads the vocabulary.
+
+    It catches a missing tokenizer.model and falls back to the BPE vocabulary, but
+    a missing module raises ModuleNotFoundError, which no handler catches.
+    """
+    text = (SCRIPTS / "quantize.sh").read_text()
+    assert text.count("--with sentencepiece") == 2
+    assert text.count("--with protobuf") == 2
+
+
 def test_quantize_writes_both_sixteen_bit_files():
     """BF16 keeps the training dtype. F16 serves the tools that read no BF16."""
     text = (SCRIPTS / "quantize.sh").read_text()

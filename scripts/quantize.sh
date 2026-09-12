@@ -26,11 +26,11 @@ if [ ! -x "$LLAMA_DIR/build/bin/llama-quantize" ]; then
     cmake --build "$LLAMA_DIR/build" --target llama-quantize -j "$(nproc)"
 fi
 
-uv run --with gguf python "$LLAMA_DIR/convert_hf_to_gguf.py" "$STAGING" \
+uv run --with gguf --with sentencepiece --with protobuf python "$LLAMA_DIR/convert_hf_to_gguf.py" "$STAGING" \
     --outfile "$OUTPUT/$NAME-BF16.gguf" \
     --outtype bf16
 
-uv run --with gguf python "$LLAMA_DIR/convert_hf_to_gguf.py" "$STAGING" \
+uv run --with gguf --with sentencepiece --with protobuf python "$LLAMA_DIR/convert_hf_to_gguf.py" "$STAGING" \
     --outfile "$OUTPUT/$NAME-F16.gguf" \
     --outtype f16
 
