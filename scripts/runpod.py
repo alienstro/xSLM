@@ -21,6 +21,8 @@ def build_request(method, path, token, payload=None):
     request = urllib.request.Request(f"{BASE_URL}/{path}", data=data, method=method)
     request.add_header("Authorization", f"Bearer {token}")
     request.add_header("Content-Type", "application/json")
+    # Cloudflare answers 403 error 1010 when the User-Agent header is absent.
+    request.add_header("User-Agent", "xslm/0.1 (+https://github.com/)")
     return request
 
 

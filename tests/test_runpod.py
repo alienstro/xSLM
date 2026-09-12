@@ -37,3 +37,9 @@ def test_terminate_proceeds_with_the_confirmation():
 def test_terminate_refuses_an_empty_pod_id():
     with pytest.raises(SystemExit, match="RUNPOD_POD_ID"):
         guard_terminate("", confirmed=True)
+
+
+def test_every_request_carries_a_user_agent():
+    """Cloudflare answers 403 error 1010 when the User-Agent header is absent."""
+    request = build_request("GET", "pods", "a-key")
+    assert request.get_header("User-agent")
