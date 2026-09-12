@@ -29,6 +29,14 @@ if [ -z "${POD_SSH:-}" ]; then
     exit 1
 fi
 
+# POD_SSH holds the host first, then flags such as "-p 40123 -i ~/.ssh/id_ed25519".
+# ssh takes the whole string, but rsync needs the host alone and the flags inside -e.
+SSH_HOST="${POD_SSH%% *}"
+SSH_EXTRA=""
+if [ "$SSH_HOST" != "$POD_SSH" ]; then
+    SSH_EXTRA="${POD_SSH#* }"
+fi
+
 remote() {
     # shellcheck disable=SC2086
     ssh $SSH_FLAGS $POD_SSH "$@"
@@ -47,8 +55,8 @@ sync)
     rsync -az --delete \
         --exclude '.git' --exclude '.venv' --exclude 'data' --exclude 'out' \
         --exclude 'llama.cpp' --exclude '__pycache__' --exclude '.env' \
-        -e "ssh $SSH_FLAGS" \
-        ./ "${POD_SSH%% *}:$REMOTE_DIR/"
+        -e "ssh $SSH_FLAGS $SSH_EXTRA" \
+        ./ "$SSH_HOST:$REMOTE_DIR/"
     ;;
 setup)
     remote "command -v $UV || curl -LsSf https://astral.sh/uv/install.sh | sh"

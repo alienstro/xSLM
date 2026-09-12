@@ -62,3 +62,10 @@ def test_pod_strips_a_pasted_ssh_prefix():
     """The RunPod console shows a full command, so POD_SSH often starts with 'ssh '."""
     text = (SCRIPTS / "pod.sh").read_text()
     assert "POD_SSH#ssh " in text
+
+
+def test_pod_gives_rsync_the_port_and_the_key():
+    """POD_SSH holds -p and -i after the host. rsync needs them inside its -e string."""
+    text = (SCRIPTS / "pod.sh").read_text()
+    assert "SSH_EXTRA" in text
+    assert '-e "ssh $SSH_FLAGS $SSH_EXTRA"' in text
