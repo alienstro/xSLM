@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _env import optional  # noqa: E402
 
 from xslm.callbacks import SampleGenerationCallback, TimeLimitCallback  # noqa: E402
-from xslm.config import build_config, load_yaml  # noqa: E402
+from xslm.config import END_OF_TEXT, build_config, load_yaml  # noqa: E402
 from xslm.data import PackedDataset  # noqa: E402
 from xslm.model import build_model  # noqa: E402
 
@@ -47,7 +47,14 @@ def main():
 
     torch.manual_seed(settings["seed"])
     model = build_model(build_config())
-    tokenizer = PreTrainedTokenizerFast(tokenizer_file=config["tokenizer"]["output_path"])
+    # Name the special tokens here. PreTrainedTokenizerFast reads none of them from
+    # tokenizer.json, and a saved config without eos_token makes a model that never
+    # stops generating.
+    tokenizer = PreTrainedTokenizerFast(
+        tokenizer_file=config["tokenizer"]["output_path"],
+        bos_token=END_OF_TEXT,
+        eos_token=END_OF_TEXT,
+    )
 
     train_dataset = PackedDataset(config["data"]["train_path"], seq_len, settings["seed"])
     eval_dataset = PackedDataset(config["data"]["val_path"], seq_len, settings["seed"])

@@ -9,13 +9,13 @@ from pathlib import Path
 
 import torch
 from huggingface_hub import HfApi
-from transformers import AutoTokenizer, LlamaForCausalLM
+from transformers import LlamaForCausalLM
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _env import optional, require  # noqa: E402
 
-from xslm.config import load_yaml  # noqa: E402
+from xslm.config import load_tokenizer, load_yaml  # noqa: E402
 from xslm.model import XSLMForCausalLM  # noqa: E402
 
 CARD = """---
@@ -180,7 +180,8 @@ def main():
 
     model = XSLMForCausalLM.from_pretrained(checkpoint).to(torch.bfloat16)
     to_llama(model).save_pretrained(staging, safe_serialization=True)
-    AutoTokenizer.from_pretrained(checkpoint).save_pretrained(staging)
+    # load_tokenizer names the end of text token, which the saved config lacks.
+    load_tokenizer(checkpoint).save_pretrained(staging)
     (staging / "README.md").write_text(build_model_card(config, repo_id, license_name))
 
     api = HfApi(token=token)

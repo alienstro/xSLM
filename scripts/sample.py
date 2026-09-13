@@ -3,9 +3,8 @@
 import argparse
 
 import torch
-from transformers import AutoTokenizer
 
-from xslm.config import load_yaml
+from xslm.config import load_tokenizer, load_yaml
 from xslm.model import XSLMForCausalLM
 
 
@@ -36,7 +35,7 @@ def main():
     checkpoint = arguments.checkpoint or config["training"]["output_dir"]
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = XSLMForCausalLM.from_pretrained(checkpoint).to(device).eval()
-    tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+    tokenizer = load_tokenizer(checkpoint)
     print(generate_text(model, tokenizer, arguments.prompt, arguments.max_new_tokens))
 
 

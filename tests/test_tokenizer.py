@@ -35,3 +35,26 @@ def test_the_saved_file_loads_through_transformers(tmp_path):
     fast = save_tokenizer(build_tokenizer(CORPUS, vocab_size=300), path)
     assert path.exists()
     assert fast.decode(fast("hello world").input_ids) == "hello world"
+
+
+def test_the_loader_always_gives_an_end_of_text_token(tmp_path):
+    """A tokenizer without a stop token makes a model that never stops.
+
+    PreTrainedTokenizerFast takes the vocabulary from tokenizer.json, but it takes
+    no special token from that file. A wrapper built without the names writes a
+    config that holds no eos_token, and generate() then runs to the token limit.
+    """
+    from tokenizers import Tokenizer, models, pre_tokenizers
+
+    from xslm.config import END_OF_TEXT_ID, load_tokenizer
+
+    raw = Tokenizer(models.BPE())
+    raw.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+    raw.add_special_tokens(["<|endoftext|>"])
+    path = tmp_path / "tokenizer.json"
+    raw.save(str(path))
+
+    tokenizer = load_tokenizer(str(tmp_path))
+    assert tokenizer.eos_token_id == END_OF_TEXT_ID
+    assert tokenizer.bos_token_id == END_OF_TEXT_ID
+    assert tokenizer.eos_token == "<|endoftext|>"

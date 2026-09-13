@@ -55,3 +55,26 @@ publish:
     - Q8_0
     - Q6_K
     - Q4_K_M
+
+instruct:
+  dataset: databricks/databricks-dolly-15k
+  base_model: Alienstro/xslm
+  output_dir: out/instruct
+  max_length: 512
+  val_pairs: 300
+  per_device_train_batch_size: 8
+  gradient_accumulation_steps: 4
+  # The model already reads English. This stage teaches one behaviour, so the rate
+  # stays about a hundred times under the rate of the pretraining run. A larger
+  # rate makes the model forget the language, which is catastrophic forgetting.
+  learning_rate: 2.0e-5
+  min_learning_rate: 2.0e-6
+  warmup_steps: 40
+  num_train_epochs: 3
+  weight_decay: 0.0
+  logging_steps: 10
+  eval_steps: 100
+  save_steps: 200
+  save_total_limit: 1
+  time_limit_minutes: 45
+  seed: 1337

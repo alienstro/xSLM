@@ -13,6 +13,25 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "base.yaml"
 
 END_OF_TEXT_ID = 0
+END_OF_TEXT = "<|endoftext|>"
+
+
+def load_tokenizer(source):
+    """Return the tokenizer of a checkpoint, with the end of text token named.
+
+    PreTrainedTokenizerFast reads the vocabulary from tokenizer.json, but it reads
+    no special token from that file. A wrapper built without the names writes a
+    config that holds no eos_token, and generate() then runs to the token limit
+    instead of stopping. Name the token here, so every caller gets a stop token.
+    """
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(source)
+    if tokenizer.eos_token_id is None:
+        tokenizer.eos_token = END_OF_TEXT
+    if tokenizer.bos_token_id is None:
+        tokenizer.bos_token = END_OF_TEXT
+    return tokenizer
 
 
 def load_yaml(path=DEFAULT_CONFIG_PATH):
