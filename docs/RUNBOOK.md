@@ -137,3 +137,42 @@ scripts/pod.sh run bash scripts/run_data_pipeline.sh   # skips a tokenizer that 
 
 `prepare_data.py` reads the size of `train.bin` and continues from that point.
 `train.py` resumes from the newest checkpoint under `out/`.
+
+## 8. Running the GGUF file
+
+Recent llama.cpp builds give `llama-cli` a conversation prompt, and raw completion
+moved to `llama-completion`. A base model holds no chat template, so use the
+completion tool.
+
+```bash
+git clone --depth 1 https://github.com/ggml-org/llama.cpp
+cmake -S llama.cpp -B llama.cpp/build -DGGML_CUDA=OFF -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release
+cmake --build llama.cpp/build --target llama-completion llama-tokenize -j2
+
+curl -sSL -o xslm-70m-BF16.gguf \
+    https://huggingface.co/Alienstro/xslm/resolve/main/gguf/xslm-70m-BF16.gguf
+
+llama.cpp/build/bin/llama-completion -m xslm-70m-BF16.gguf \
+    -p 'The history of' -n 120 --temp 0.8 --top-p 0.95
+```
+
+### Proving that llama.cpp splits the text as the training did
+
+`tokenizer.ggml.pre` chooses the regex list that llama.cpp applies. A wrong value
+raises no error. It only splits the text differently from the training, which
+shows as a quiet loss of quality. Compare the two tokenizers instead of trusting
+the value:
+
+```bash
+llama.cpp/build/bin/llama-tokenize -m xslm-70m-BF16.gguf --ids \
+    -p 'In 1822 the cost was 3.50 dollars, up 12345 percent.'
+```
+
+```python
+from transformers import AutoTokenizer
+print(AutoTokenizer.from_pretrained("Alienstro/xslm").encode(
+    "In 1822 the cost was 3.50 dollars, up 12345 percent."))
+```
+
+The two lists must match exactly. Each digit must take one token, because the
+tokenizer holds `Digits(individual_digits=True)`.
