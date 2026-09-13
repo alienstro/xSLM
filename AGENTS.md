@@ -113,3 +113,15 @@ the value that the converter prints when it fails.
 Every fix in this repository has a test that fails without it. A silent bug, such
 as a label mask or a loss scale, needs a test that reads the number, not a test
 that reads the shape.
+
+## 11. Prove the template before you destroy the pod
+
+A chat template that reaches the GGUF can still fail to render. Run the tuned file
+once, and read the answer, before you terminate the pod:
+
+```bash
+llama cli --jinja -hf <repo> --hf-file gguf/<name>-instruct-Q8_0.gguf
+```
+
+llama.cpp refuses a custom template on its old path, and it names the remedy in the
+error: `this custom template is not supported, try using --jinja`.

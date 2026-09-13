@@ -191,3 +191,27 @@ print(AutoTokenizer.from_pretrained("Alienstro/xslm").encode(
 
 The two lists must match exactly. Each digit must take one token, because the
 tokenizer holds `Digits(individual_digits=True)`.
+
+## 9. Running the tuned model
+
+The tuned model answers an instruction. The base model only continues text.
+
+```bash
+llama cli --jinja -hf Alienstro/xslm --hf-file gguf/xslm-70m-instruct-Q8_0.gguf
+```
+
+> Warning: the `--jinja` flag is not optional. llama.cpp reads a short list of well
+> known templates on its old path, and it refuses every other template with
+> `this custom template is not supported, try using --jinja`. The flag turns on the
+> engine that reads the template of this model.
+
+For the base model, which holds no template, use the completion tool instead:
+
+```bash
+llama completion -hf Alienstro/xslm:Q8_0 -p 'The history of' -n 120
+```
+
+| Model | File | Tool |
+|---|---|---|
+| Tuned | `gguf/{name}-instruct-Q8_0.gguf` | `llama cli --jinja` |
+| Base | `gguf/{name}-Q8_0.gguf` | `llama completion` |
