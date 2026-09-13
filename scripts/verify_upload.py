@@ -25,6 +25,18 @@ REQUIRED = [
     "gguf/{name}-Q8_0.gguf",
     "gguf/{name}-Q6_K.gguf",
     "gguf/{name}-Q4_K_M.gguf",
+    # The tuned model. The watchdog reads this list before it destroys the pod, so
+    # a missing tuned file must fail the check and leave the pod stopped instead.
+    "instruct/config.json",
+    "instruct/model.safetensors",
+    "instruct/tokenizer.json",
+    # The chat template lives here, and llama.cpp guesses without it.
+    "instruct/tokenizer_config.json",
+    "gguf/{name}-instruct-BF16.gguf",
+    "gguf/{name}-instruct-F16.gguf",
+    "gguf/{name}-instruct-Q8_0.gguf",
+    "gguf/{name}-instruct-Q6_K.gguf",
+    "gguf/{name}-instruct-Q4_K_M.gguf",
 ]
 
 
