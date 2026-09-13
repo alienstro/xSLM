@@ -214,3 +214,13 @@ def test_the_patch_writes_the_pre_type_that_matches_the_tokenizer(tmp_path):
     # A second run must change nothing, because the script runs on every build.
     assert patch(target) is False
     assert target.read_text() == text
+
+
+def test_quantize_takes_a_name_so_the_tuned_files_differ():
+    """Both models publish into one gguf folder, so the names must differ.
+
+    A tuned file that carries the base name would replace the base file.
+    """
+    text = (SCRIPTS / "quantize.sh").read_text()
+    assert 'NAME="${3:-' in text or "NAME=\"${3:-" in text
+    assert "$NAME-BF16.gguf" in text

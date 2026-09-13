@@ -57,3 +57,30 @@ def test_the_card_never_holds_a_token(monkeypatch):
     monkeypatch.setenv("HF_TOKEN", "secret-value-do-not-print")
     card = build_model_card(load_yaml(), "someone/xslm-70m", "apache-2.0")
     assert "secret-value-do-not-print" not in card
+
+
+def test_the_tuned_model_publishes_under_its_own_folder(monkeypatch):
+    """The tuned model must never overwrite the base model.
+
+    Both models live in one repository, so the tuned files take a folder of their
+    own. A push to the root would replace the base weights, and the base model is
+    the artifact that the tuning run started from.
+    """
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from push_to_hub import resolve_destination
+
+    assert resolve_destination("instruct") == "instruct"
+    assert resolve_destination("base") == ""
+    assert resolve_destination(None) == ""
+
+
+def test_the_tuned_model_keeps_its_chat_template():
+    """The template must reach the repository, or llama.cpp guesses it."""
+    from xslm.instruct import CHAT_TEMPLATE
+
+    assert "### Instruction:" in CHAT_TEMPLATE
+    assert "### Response:" in CHAT_TEMPLATE
+    assert "eos_token" in CHAT_TEMPLATE

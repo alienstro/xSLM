@@ -12,7 +12,9 @@ set -euo pipefail
 
 STAGING="${1:-out/publish}"
 OUTPUT="${2:-out/gguf}"
-NAME="xslm-70m"
+# Both models publish into one gguf folder, so the tuned files take another name.
+# A tuned file under the base name would replace the base file.
+NAME="${3:-xslm-70m}"
 LLAMA_DIR="${LLAMA_CPP_DIR:-llama.cpp}"
 
 mkdir -p "$OUTPUT"

@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _env import optional, require  # noqa: E402
 
 from xslm.config import load_tokenizer, load_yaml  # noqa: E402
+from xslm.instruct import CHAT_TEMPLATE  # noqa: E402
 from xslm.model import XSLMForCausalLM  # noqa: E402
 
 CARD = """---
@@ -163,10 +164,26 @@ def build_model_card(config, repo_id, license_name):
     )
 
 
+def resolve_destination(stage):
+    """Return the folder inside the repository that holds this stage.
+
+    Both models live in one repository. The base model keeps the root, because the
+    published links already point there. The tuned model takes a folder of its own,
+    so a push never replaces the weights that the tuning run started from.
+    """
+    return "instruct" if stage == "instruct" else ""
+
+
 def main():
     parser = argparse.ArgumentParser(description="Push the model to the HuggingFace Hub.")
     parser.add_argument("--checkpoint", default=None)
-    parser.add_argument("--staging", default="out/publish")
+    parser.add_argument("--staging", default=None)
+    parser.add_argument(
+        "--stage",
+        choices=["base", "instruct"],
+        default="base",
+        help="Which model to publish. The tuned model goes to the instruct folder.",
+    )
     arguments = parser.parse_args()
 
     token = require("HF_TOKEN")
@@ -174,20 +191,38 @@ def main():
     license_name = optional("MODEL_LICENSE", "apache-2.0")
 
     config = load_yaml()
-    checkpoint = arguments.checkpoint or config["training"]["output_dir"]
-    staging = Path(arguments.staging)
+    tuned = arguments.stage == "instruct"
+    default_checkpoint = (
+        config["instruct"]["output_dir"] if tuned else config["training"]["output_dir"]
+    )
+    checkpoint = arguments.checkpoint or default_checkpoint
+    staging = Path(arguments.staging or ("out/publish-instruct" if tuned else "out/publish"))
     staging.mkdir(parents=True, exist_ok=True)
 
     model = XSLMForCausalLM.from_pretrained(checkpoint).to(torch.bfloat16)
     to_llama(model).save_pretrained(staging, safe_serialization=True)
     # load_tokenizer names the end of text token, which the saved config lacks.
-    load_tokenizer(checkpoint).save_pretrained(staging)
-    (staging / "README.md").write_text(build_model_card(config, repo_id, license_name))
+    tokenizer = load_tokenizer(checkpoint)
+    if tuned:
+        # llama.cpp reads the template from the GGUF metadata, and it guesses a
+        # template when the file holds none. A guessed template feeds the model
+        # markers that it never read, and the answer becomes punctuation.
+        tokenizer.chat_template = CHAT_TEMPLATE
+    tokenizer.save_pretrained(staging)
+    if not tuned:
+        (staging / "README.md").write_text(build_model_card(config, repo_id, license_name))
 
+    destination = resolve_destination(arguments.stage)
     api = HfApi(token=token)
     api.create_repo(repo_id, repo_type="model", exist_ok=True)
-    api.upload_folder(folder_path=str(staging), repo_id=repo_id, repo_type="model")
-    print(f"Pushed the BF16 weights and the model card to {repo_id}.")
+    api.upload_folder(
+        folder_path=str(staging),
+        path_in_repo=destination,
+        repo_id=repo_id,
+        repo_type="model",
+    )
+    where = destination or "the root"
+    print(f"Pushed the BF16 weights to {repo_id}, in {where}.")
 
 
 if __name__ == "__main__":
