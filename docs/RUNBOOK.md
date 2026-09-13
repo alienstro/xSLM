@@ -144,14 +144,29 @@ Recent llama.cpp builds give `llama-cli` a conversation prompt, and raw completi
 moved to `llama-completion`. A base model holds no chat template, so use the
 completion tool.
 
+Build with the two flags that the download needs. `LLAMA_CURL` fetches the file,
+and `LLAMA_OPENSSL` gives it HTTPS. Without the second one the tool prints
+`HTTPS is not supported`, which reads as a network fault but is a build fault.
+
 ```bash
+apt-get install -y cmake libcurl4-openssl-dev libssl-dev
 git clone --depth 1 https://github.com/ggml-org/llama.cpp
-cmake -S llama.cpp -B llama.cpp/build -DGGML_CUDA=OFF -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release
+cmake -S llama.cpp -B llama.cpp/build \
+    -DGGML_CUDA=OFF -DLLAMA_CURL=ON -DLLAMA_OPENSSL=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build llama.cpp/build --target llama-completion llama-tokenize -j2
+```
 
-curl -sSL -o xslm-70m-BF16.gguf \
-    https://huggingface.co/Alienstro/xslm/resolve/main/gguf/xslm-70m-BF16.gguf
+`-hf` reads the file from the Hub, so no download step is needed. The quant tag
+after the colon picks the file, and it finds the `gguf` folder by itself.
 
+```bash
+llama.cpp/build/bin/llama-completion -hf Alienstro/xslm:BF16 \
+    -p 'The history of' -n 120 --temp 0.8 --top-p 0.95
+```
+
+To read a local file instead, name it with `-m`:
+
+```bash
 llama.cpp/build/bin/llama-completion -m xslm-70m-BF16.gguf \
     -p 'The history of' -n 120 --temp 0.8 --top-p 0.95
 ```
